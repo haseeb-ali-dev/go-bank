@@ -73,8 +73,12 @@ func (s *PostgresStore) CreateAccount(a *Account) error {
 }
 
 func (s *PostgresStore) DeleteAccount(id int) error {
-	_, err := s.db.Query(`DELETE FROM accounts WHERE id = $1`, id)
-	return err
+	rows, err := s.db.Query(`DELETE FROM accounts WHERE id = $1 RETURNING id`, id)
+	if err != nil {
+		return err
+	}
+
+	return rowsEffected(rows, id)
 }
 
 func (s *PostgresStore) UpdateAccount(id int, a *Account) error {
@@ -128,4 +132,19 @@ func scanIntoAccount(rows *sql.Rows) (*Account, error) {
 	)
 
 	return account, err
+}
+
+func rowsEffected(rows *sql.Rows, id int) error {
+	var rowsAffected int
+	for rows.Next() {
+		rowsAffected++
+	}
+
+	fmt.Println("rowsAffected: ", rowsAffected)
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("no account with ID %d found", id)
+	}
+
+	return nil
 }
