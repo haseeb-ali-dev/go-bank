@@ -49,6 +49,8 @@ func (s *APIServer) Run() {
 
 	router.HandleFunc("/account/{id}", makeHTTPHandlerFunc(s.handleAccountWithID))
 
+	router.HandleFunc("/transfer", makeHTTPHandlerFunc(s.handleTransfer))
+
 	log.Println("JSON API server running on ", s.listenAddr)
 
 	http.ListenAndServe(s.listenAddr, router)
@@ -128,7 +130,12 @@ func (s *APIServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *APIServer) handleTransfer(w http.ResponseWriter, r *http.Request) error {
-	return nil
+	transferReq := new(TransferReqest)
+	if err := json.NewDecoder(r.Body).Decode(transferReq); err != nil {
+		return err
+	}
+
+	return WriteJSON(w, http.StatusOK, transferReq)
 }
 
 func getID(r *http.Request) (int, error) {
