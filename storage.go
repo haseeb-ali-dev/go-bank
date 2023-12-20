@@ -68,7 +68,7 @@ func (s *PostgresStore) CreateAccount(a *Account) error {
 		a.Balance,
 	)
 
-	fmt.Printf("resp: %v\n", resp)
+	fmt.Printf("CreateAccount resp ===> %v\n", resp)
 	return err
 }
 
