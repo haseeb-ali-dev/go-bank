@@ -110,6 +110,8 @@ func NewAPIServer(listenAddr string, store Storage) *APIServer {
 func (s *APIServer) Run() {
 	router := mux.NewRouter()
 
+	router.HandleFunc("/login", makeHTTPHandlerFunc(s.handleLogin))
+
 	router.HandleFunc("/account", makeHTTPHandlerFunc(s.handleAccount))
 
 	router.HandleFunc("/account/{id}", withJWTAuth(makeHTTPHandlerFunc(s.handleAccountWithID), s.store))
@@ -143,6 +145,39 @@ func (s *APIServer) handleAccountWithID(w http.ResponseWriter, r *http.Request) 
 	return fmt.Errorf("method not allowed %s", r.Method)
 }
 
+func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) error {
+	if r.Method != "POST" {
+		return fmt.Errorf("method not allowed %s", r.Method)
+	}
+
+	var loginReq LoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&loginReq); err != nil {
+		return err
+	}
+
+	account, err := s.store.GetAccountByNumber(int(loginReq.Number))
+	if err != nil {
+		return err
+	}
+
+	if !account.ValidPassword(loginReq.Password) {
+		return fmt.Errorf("password is incorrect")
+	}
+
+	tokenStr, err := createJWT(account)
+	if err != nil {
+		return err
+	}
+
+	resp := LoginResponse{
+		Token:     tokenStr,
+		Number:    account.Number,
+		ExpiredAt: time.Now().Add(24 * time.Hour).Format("Jan 02, 2006 03:04 PM"),
+	}
+
+	return WriteJSON(w, http.StatusOK, resp)
+}
+
 // ------> GET /account
 func (s *APIServer) handleGetAccount(w http.ResponseWriter, r *http.Request) error {
 	accounts, err := s.store.GetAccount()
@@ -173,17 +208,14 @@ func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) 
 		return err
 	}
 
-	account := NewAccount(createAccountRequest.FirstName, createAccountRequest.LastName)
-	if err := s.store.CreateAccount(account); err != nil {
-		return err
-	}
-
-	tokenStr, err := createJWT(account)
+	account, err := NewAccount(createAccountRequest.FirstName, createAccountRequest.LastName, createAccountRequest.Password)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("JWT token: ", tokenStr)
+	if err := s.store.CreateAccount(account); err != nil {
+		return err
+	}
 
 	return WriteJSON(w, http.StatusOK, account)
 }
